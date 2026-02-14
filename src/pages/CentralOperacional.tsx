@@ -96,6 +96,7 @@ const CentralOperacional = () => {
   const clock = useLiveClock();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const prevCountRef = useRef(0);
@@ -171,10 +172,14 @@ const CentralOperacional = () => {
         }
         prevCountRef.current = data.length;
         setAlerts(data);
+        setApiError(false);
         updateMarkers(data);
         setLoading(false);
       } catch {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setApiError(true);
+        }
       }
     };
     load();
@@ -290,6 +295,12 @@ const CentralOperacional = () => {
                 <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
                   <Radio className="w-5 h-5 animate-spin" />
                   A carregar ocorrências...
+                </div>
+              ) : apiError ? (
+                <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
+                  <AlertTriangle className="w-8 h-8 text-warning opacity-60" />
+                  <p>API indisponível. A tentar reconectar...</p>
+                  <p className="text-[10px] text-muted-foreground/60">O servidor pode estar a iniciar (Render free tier).</p>
                 </div>
               ) : alerts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
