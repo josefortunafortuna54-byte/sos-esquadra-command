@@ -256,7 +256,7 @@ const CentralOperacional = () => {
       }
     };
     loadAgents();
-    const interval = setInterval(loadAgents, 3000);
+    const interval = setInterval(loadAgents, 2000);
     return () => {
       active = false;
       clearInterval(interval);
