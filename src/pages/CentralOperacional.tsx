@@ -115,6 +115,7 @@ const CentralOperacional = () => {
   const mapInstance = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const vehicleMarkersRef = useRef<L.LayerGroup | null>(null);
+  const vehicleMarkerCache = useRef<Map<string, L.Marker>>(new Map());
 
   useEffect(() => {
     if (!localStorage.getItem("sos-auth")) navigate("/");
@@ -166,23 +167,41 @@ const CentralOperacional = () => {
     }
   }, []);
 
-  /* ── Update vehicle markers ── */
+  /* ── Update vehicle markers (smooth movement, no recreation) ── */
   const updateVehicleMarkers = useCallback((agentList: Agent[]) => {
     if (!vehicleMarkersRef.current || !mapInstance.current) return;
-    vehicleMarkersRef.current.clearLayers();
+    const cache = vehicleMarkerCache.current;
+    const activeIds = new Set(agentList.map((a) => a.id));
+
+    // Remove markers for agents no longer present
+    cache.forEach((marker, id) => {
+      if (!activeIds.has(id)) {
+        vehicleMarkersRef.current!.removeLayer(marker);
+        cache.delete(id);
+      }
+    });
+
     agentList.forEach((agent) => {
-      const marker = L.marker([agent.latitude, agent.longitude], {
-        icon: createVehicleIcon(),
-      });
-      marker.bindPopup(
-        `<div style="font-family:Inter;font-size:12px;color:#e2e8f0;background:#0f172a;padding:12px;border-radius:8px;border:1px solid #1e3a5f;min-width:180px;">
+      const existing = cache.get(agent.id);
+      const popupHtml = `<div style="font-family:Inter;font-size:12px;color:#e2e8f0;background:#0f172a;padding:12px;border-radius:8px;border:1px solid #1e3a5f;min-width:180px;">
           <strong style="font-size:13px;">🚓 ${agent.name}</strong><br/>
           <span style="color:#3b82f6;font-size:11px;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">● ${agent.status || "patrulha"}</span><br/>
           ${agent.updatedAt ? `<span style="color:#64748b;font-size:10px;">🕐 ${new Date(agent.updatedAt).toLocaleTimeString("pt-AO")}</span>` : ""}
-        </div>`,
-        { className: "custom-popup" }
-      );
-      vehicleMarkersRef.current!.addLayer(marker);
+        </div>`;
+
+      if (existing) {
+        // Smooth move — only update position, don't recreate
+        existing.setLatLng([agent.latitude, agent.longitude]);
+        existing.setPopupContent(popupHtml);
+      } else {
+        // New agent — create marker
+        const marker = L.marker([agent.latitude, agent.longitude], {
+          icon: createVehicleIcon(),
+        });
+        marker.bindPopup(popupHtml, { className: "custom-popup" });
+        vehicleMarkersRef.current!.addLayer(marker);
+        cache.set(agent.id, marker);
+      }
     });
   }, []);
 
