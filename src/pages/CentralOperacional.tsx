@@ -18,9 +18,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/DashboardSidebar";
-import { fetchAlerts, updateAlertStatus, fetchAgents, type Alert, type Agent } from "@/lib/alertsApi";
+import { fetchAlerts, updateAlertStatus, fetchAgents, findClosestAgent, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
-import { Car } from "lucide-react";
+import { Car, Navigation, Zap } from "lucide-react";
 
 /* ── Helpers ────────────────────────────────── */
 
@@ -110,12 +110,16 @@ const CentralOperacional = () => {
   const [apiError, setApiError] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  const [dispatch, setDispatch] = useState<{ alertId: string; alert: Alert; result: DispatchResult } | null>(null);
+  const [dispatchConfirming, setDispatchConfirming] = useState(false);
   const prevCountRef = useRef(0);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const vehicleMarkersRef = useRef<L.LayerGroup | null>(null);
   const vehicleMarkerCache = useRef<Map<string, L.Marker>>(new Map());
+  const routeLineRef = useRef<L.Polyline | null>(null);
+  const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!localStorage.getItem("sos-auth")) navigate("/");
@@ -205,6 +209,83 @@ const CentralOperacional = () => {
     });
   }, []);
 
+  /* ── Auto-dispatch helper ── */
+  const triggerAutoDispatch = useCallback(async (alert: Alert) => {
+    const result = await findClosestAgent(alert.latitude, alert.longitude);
+    if (!result) return;
+    setDispatch({ alertId: alert.id, alert, result });
+
+    // Draw route line on map
+    if (mapInstance.current) {
+      if (routeLineRef.current) {
+        mapInstance.current.removeLayer(routeLineRef.current);
+      }
+      routeLineRef.current = L.polyline(
+        [[alert.latitude, alert.longitude], [result.agent.latitude, result.agent.longitude]],
+        { color: "#3b82f6", weight: 3, opacity: 0.8, dashArray: "8, 8" }
+      ).addTo(mapInstance.current);
+
+      // Fit bounds to show both points
+      mapInstance.current.fitBounds(
+        [[alert.latitude, alert.longitude], [result.agent.latitude, result.agent.longitude]],
+        { padding: [60, 60], animate: true }
+      );
+    }
+
+    // Blink the vehicle marker
+    if (blinkIntervalRef.current) clearInterval(blinkIntervalRef.current);
+    const marker = vehicleMarkerCache.current.get(result.agent.id);
+    if (marker) {
+      let visible = true;
+      blinkIntervalRef.current = setInterval(() => {
+        visible = !visible;
+        marker.setOpacity(visible ? 1 : 0.2);
+      }, 400);
+    }
+
+    toast("🚔 Despacho Automático IA", {
+      description: `Viatura ${result.agent.name} recomendada — ${result.distance}m`,
+    });
+  }, []);
+
+  const confirmDispatch = useCallback(async () => {
+    if (!dispatch) return;
+    setDispatchConfirming(true);
+    await handleStatusUpdate(dispatch.alertId, "em atendimento");
+    // Clean up route and blink
+    if (routeLineRef.current && mapInstance.current) {
+      mapInstance.current.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+    if (blinkIntervalRef.current) {
+      clearInterval(blinkIntervalRef.current);
+      blinkIntervalRef.current = null;
+      const marker = vehicleMarkerCache.current.get(dispatch.result.agent.id);
+      if (marker) marker.setOpacity(1);
+    }
+    toast("✅ Despacho confirmado!", {
+      description: `${dispatch.result.agent.name} enviada para ocorrência.`,
+    });
+    setDispatch(null);
+    setDispatchConfirming(false);
+  }, [dispatch]);
+
+  const cancelDispatch = useCallback(() => {
+    if (routeLineRef.current && mapInstance.current) {
+      mapInstance.current.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+    if (blinkIntervalRef.current) {
+      clearInterval(blinkIntervalRef.current);
+      blinkIntervalRef.current = null;
+      if (dispatch) {
+        const marker = vehicleMarkerCache.current.get(dispatch.result.agent.id);
+        if (marker) marker.setOpacity(1);
+      }
+    }
+    setDispatch(null);
+  }, [dispatch]);
+
   /* ── Polling ── */
   useEffect(() => {
     let active = true;
@@ -215,12 +296,18 @@ const CentralOperacional = () => {
 
         if (prevCountRef.current > 0 && data.length > prevCountRef.current) {
           playAlertSound();
-          const newIds = data.slice(0, data.length - prevCountRef.current).map((a) => a.id);
+          const newAlerts = data.slice(0, data.length - prevCountRef.current);
+          const newIds = newAlerts.map((a) => a.id);
           setFlashIds(new Set(newIds));
           setTimeout(() => setFlashIds(new Set()), 3000);
           toast("🚨 Nova ocorrência recebida!", {
             description: "Um novo alerta de emergência chegou ao sistema.",
           });
+          // Auto-dispatch for first new pending alert
+          const firstPending = newAlerts.find((a) => a.status === "pendente");
+          if (firstPending) {
+            triggerAutoDispatch(firstPending);
+          }
         }
         prevCountRef.current = data.length;
         setAlerts(data);
@@ -240,7 +327,7 @@ const CentralOperacional = () => {
       active = false;
       clearInterval(interval);
     };
-  }, [updateMarkers]);
+  }, [updateMarkers, triggerAutoDispatch]);
 
   /* ── Vehicle Polling (3s) ── */
   useEffect(() => {
@@ -364,6 +451,59 @@ const CentralOperacional = () => {
                 {alerts.length} TOTAL
               </Badge>
             </div>
+
+            {/* ── DISPATCH CARD ── */}
+            <AnimatePresence>
+              {dispatch && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mx-4 mt-3 rounded-lg border-2 border-blue-500/60 bg-blue-500/10 p-4"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                      🚔 Despacho Automático IA
+                    </span>
+                  </div>
+                  <div className="space-y-2 mb-3">
+                    <div className="flex items-center gap-2 text-sm text-foreground">
+                      <Car className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="font-semibold">{dispatch.result.agent.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Navigation className="w-3 h-3" />
+                      <span>Distância: <strong className="text-foreground">{dispatch.result.distance}m</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <User className="w-3 h-3" />
+                      <span>Ocorrência: <strong className="text-foreground">{dispatch.alert.name}</strong></span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 h-8 text-xs font-bold tracking-wide bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={dispatchConfirming}
+                      onClick={confirmDispatch}
+                    >
+                      {dispatchConfirming ? "A enviar..." : (
+                        <><CheckCircle className="w-3 h-3 mr-1" />CONFIRMAR DESPACHO</>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={cancelDispatch}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
@@ -435,17 +575,27 @@ const CentralOperacional = () => {
                       {/* Actions */}
                       <div className="flex gap-2">
                         {alert.status === "pendente" && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-1 h-8 text-xs font-bold tracking-wide"
-                            disabled={processingId === alert.id}
-                            onClick={() => handleStatusUpdate(alert.id, "em atendimento")}
-                          >
-                            {processingId === alert.id ? "A processar..." : (
-                              <><Phone className="w-3 h-3 mr-1" />ATENDER</>
-                            )}
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex-1 h-8 text-xs font-bold tracking-wide"
+                              disabled={processingId === alert.id}
+                              onClick={() => handleStatusUpdate(alert.id, "em atendimento")}
+                            >
+                              {processingId === alert.id ? "A processar..." : (
+                                <><Phone className="w-3 h-3 mr-1" />ATENDER</>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+                              onClick={() => triggerAutoDispatch(alert)}
+                            >
+                              <Zap className="w-3 h-3 mr-1" />IA
+                            </Button>
+                          </>
                         )}
                         {alert.status === "em atendimento" && (
                           <Button

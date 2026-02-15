@@ -161,3 +161,50 @@ export async function fetchAgents(): Promise<Agent[]> {
     return [...MOCK_AGENTS];
   }
 }
+
+/* ── Despacho automático ── */
+
+export interface DispatchResult {
+  agent: Agent;
+  distance: number;
+}
+
+export async function findClosestAgent(lat: number, lng: number): Promise<DispatchResult | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/closest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error("Erro ao buscar viatura mais próxima");
+    const data = await res.json();
+    return {
+      agent: {
+        id: data._id || data.id || "v-closest",
+        name: data.name || data.nome || "Viatura",
+        latitude: data.latitude ?? data.lat ?? lat,
+        longitude: data.longitude ?? data.lng ?? lng,
+        status: data.status || "patrulha",
+        updatedAt: data.updatedAt,
+      },
+      distance: data.distance ?? 0,
+    };
+  } catch {
+    // Fallback: find closest from mock agents using haversine approximation
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    let closest: Agent | null = null;
+    let minDist = Infinity;
+    for (const a of MOCK_AGENTS) {
+      const dLat = toRad(a.latitude - lat);
+      const dLng = toRad(a.longitude - lng);
+      const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000; // rough meters
+      if (dist < minDist) {
+        minDist = dist;
+        closest = a;
+      }
+    }
+    if (!closest) return null;
+    return { agent: closest, distance: Math.round(minDist) };
+  }
+}
