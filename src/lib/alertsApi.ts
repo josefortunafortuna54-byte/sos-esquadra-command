@@ -120,7 +120,44 @@ export async function updateAlertStatus(id: string, status: string): Promise<voi
     });
     if (!res.ok) throw new Error("Erro ao atualizar alerta");
   } catch {
-    // API offline — atualizar dados locais de demonstração
     mockAlerts = mockAlerts.map((a) => (a.id === id ? { ...a, status } : a));
+  }
+}
+
+/* ── Viaturas / Agentes ── */
+
+export interface Agent {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  status?: string;
+  updatedAt?: string;
+}
+
+const MOCK_AGENTS: Agent[] = [
+  { id: "v-001", name: "Viatura Alpha-1", latitude: -8.8320, longitude: 13.2420, status: "patrulha", updatedAt: new Date(Date.now() - 30000).toISOString() },
+  { id: "v-002", name: "Viatura Bravo-2", latitude: -8.8450, longitude: 13.2580, status: "patrulha", updatedAt: new Date(Date.now() - 15000).toISOString() },
+  { id: "v-003", name: "Viatura Charlie-3", latitude: -8.8180, longitude: 13.2350, status: "ocorrência", updatedAt: new Date(Date.now() - 45000).toISOString() },
+  { id: "v-004", name: "Viatura Delta-4", latitude: -8.8550, longitude: 13.2200, status: "patrulha", updatedAt: new Date(Date.now() - 10000).toISOString() },
+  { id: "v-005", name: "Viatura Echo-5", latitude: -8.8090, longitude: 13.2750, status: "base", updatedAt: new Date(Date.now() - 60000).toISOString() },
+];
+
+export async function fetchAgents(): Promise<Agent[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error("Erro ao buscar agentes");
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Sem dados");
+    return data.map((a: any) => ({
+      id: a._id || a.id,
+      name: a.name || a.nome || "Viatura",
+      latitude: a.latitude ?? a.lat ?? -8.839,
+      longitude: a.longitude ?? a.lng ?? 13.255,
+      status: a.status || "patrulha",
+      updatedAt: a.updatedAt || a.createdAt,
+    }));
+  } catch {
+    return [...MOCK_AGENTS];
   }
 }

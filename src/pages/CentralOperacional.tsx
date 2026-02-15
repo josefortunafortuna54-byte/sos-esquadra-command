@@ -18,8 +18,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/DashboardSidebar";
-import { fetchAlerts, updateAlertStatus, type Alert } from "@/lib/alertsApi";
+import { fetchAlerts, updateAlertStatus, fetchAgents, type Alert, type Agent } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
+import { Car } from "lucide-react";
 
 /* ── Helpers ────────────────────────────────── */
 
@@ -32,6 +33,15 @@ const createAlertIcon = (status: string) => {
     className: "",
     iconSize: [16, 16],
     iconAnchor: [8, 8],
+  });
+};
+
+const createVehicleIcon = () => {
+  return L.divIcon({
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 12px #3b82f699;"></div>`,
+    className: "",
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
   });
 };
 
@@ -95,6 +105,7 @@ const CentralOperacional = () => {
   const navigate = useNavigate();
   const clock = useLiveClock();
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -103,6 +114,7 @@ const CentralOperacional = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const vehicleMarkersRef = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     if (!localStorage.getItem("sos-auth")) navigate("/");
@@ -120,6 +132,7 @@ const CentralOperacional = () => {
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png").addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
+    vehicleMarkersRef.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
     return () => {
       map.remove();
@@ -151,6 +164,26 @@ const CentralOperacional = () => {
     if (pending) {
       mapInstance.current.setView([pending.latitude, pending.longitude], 14, { animate: true });
     }
+  }, []);
+
+  /* ── Update vehicle markers ── */
+  const updateVehicleMarkers = useCallback((agentList: Agent[]) => {
+    if (!vehicleMarkersRef.current || !mapInstance.current) return;
+    vehicleMarkersRef.current.clearLayers();
+    agentList.forEach((agent) => {
+      const marker = L.marker([agent.latitude, agent.longitude], {
+        icon: createVehicleIcon(),
+      });
+      marker.bindPopup(
+        `<div style="font-family:Inter;font-size:12px;color:#e2e8f0;background:#0f172a;padding:12px;border-radius:8px;border:1px solid #1e3a5f;min-width:180px;">
+          <strong style="font-size:13px;">🚓 ${agent.name}</strong><br/>
+          <span style="color:#3b82f6;font-size:11px;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">● ${agent.status || "patrulha"}</span><br/>
+          ${agent.updatedAt ? `<span style="color:#64748b;font-size:10px;">🕐 ${new Date(agent.updatedAt).toLocaleTimeString("pt-AO")}</span>` : ""}
+        </div>`,
+        { className: "custom-popup" }
+      );
+      vehicleMarkersRef.current!.addLayer(marker);
+    });
   }, []);
 
   /* ── Polling ── */
@@ -189,6 +222,27 @@ const CentralOperacional = () => {
       clearInterval(interval);
     };
   }, [updateMarkers]);
+
+  /* ── Vehicle Polling (3s) ── */
+  useEffect(() => {
+    let active = true;
+    const loadAgents = async () => {
+      try {
+        const data = await fetchAgents();
+        if (!active) return;
+        setAgents(data);
+        updateVehicleMarkers(data);
+      } catch {
+        // silently fail
+      }
+    };
+    loadAgents();
+    const interval = setInterval(loadAgents, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [updateVehicleMarkers]);
 
   /* ── Actions ── */
   const handleStatusUpdate = async (id: string, newStatus: string) => {
@@ -272,11 +326,12 @@ const CentralOperacional = () => {
         </header>
 
         {/* ── STATS BAR ── */}
-        <div className="px-6 py-3 flex items-center gap-3 flex-shrink-0 border-b border-border/50">
+        <div className="px-6 py-3 flex items-center gap-3 flex-shrink-0 border-b border-border/50 flex-wrap">
           <StatCard icon={Siren} label="Total SOS" value={alerts.length} color="bg-primary/15 text-primary" />
           <StatCard icon={AlertTriangle} label="Pendentes" value={pendingCount} color="bg-destructive/15 text-destructive" />
           <StatCard icon={Radio} label="Em Atendimento" value={attendingCount} color="bg-warning/15 text-warning" />
           <StatCard icon={CheckCircle} label="Concluídas" value={concludedCount} color="bg-success/15 text-success" />
+          <StatCard icon={Car} label="Viaturas" value={agents.length} color="bg-blue-500/15 text-blue-400" />
         </div>
 
         {/* ── CONTENT ── */}
@@ -415,6 +470,9 @@ const CentralOperacional = () => {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-success" /> Concluída
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> 🚓 Viatura
                 </span>
               </div>
             </div>
