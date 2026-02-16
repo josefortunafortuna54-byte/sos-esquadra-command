@@ -162,6 +162,28 @@ export async function fetchAgents(): Promise<Agent[]> {
   }
 }
 
+/* ── Unidades (endpoint /units) ── */
+
+export async function fetchUnits(): Promise<Agent[]> {
+  try {
+    const res = await fetch(`${API_BASE}/units`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error("Erro ao buscar unidades");
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Sem dados");
+    return data.map((u: any) => ({
+      id: u._id || u.id,
+      name: u.name || u.nome || "Unidade",
+      latitude: u.latitude ?? u.lat ?? -8.839,
+      longitude: u.longitude ?? u.lng ?? 13.255,
+      status: u.status || "patrulha",
+      updatedAt: u.updatedAt || u.createdAt,
+    }));
+  } catch {
+    // Fallback: use agents endpoint
+    return fetchAgents();
+  }
+}
+
 /* ── Despacho automático ── */
 
 export interface DispatchResult {
