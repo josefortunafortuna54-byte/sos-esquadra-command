@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.heat";
 import {
   AlertTriangle,
   Activity,
@@ -13,14 +14,28 @@ import {
   Shield,
   Siren,
   User,
+  Car,
+  Navigation,
+  Zap,
+  Timer,
+  Building2,
+  Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/DashboardSidebar";
-import { fetchAlerts, updateAlertStatus, fetchAgents, findClosestAgent, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
+import { fetchAlerts, updateAlertStatus, fetchUnits, findClosestAgent, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
-import { Car, Navigation, Zap } from "lucide-react";
+
+/* ── Police Bases ── */
+const POLICE_BASES = [
+  { id: "base-1", name: "Comando Provincial de Luanda", lat: -8.8383, lng: 13.2344 },
+  { id: "base-2", name: "Esquadra da Maianga", lat: -8.8260, lng: 13.2450 },
+  { id: "base-3", name: "Esquadra do Cazenga", lat: -8.8090, lng: 13.2750 },
+  { id: "base-4", name: "Esquadra de Viana", lat: -8.8700, lng: 13.3700 },
+  { id: "base-5", name: "Esquadra do Rangel", lat: -8.8310, lng: 13.2180 },
+];
 
 /* ── Helpers ────────────────────────────────── */
 
@@ -42,6 +57,17 @@ const createVehicleIcon = () => {
     className: "",
     iconSize: [14, 14],
     iconAnchor: [7, 7],
+  });
+};
+
+const createBaseIcon = () => {
+  return L.divIcon({
+    html: `<div style="width:18px;height:18px;border-radius:3px;background:#eab308;border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 10px #eab30866;display:flex;align-items:center;justify-content:center;">
+      <div style="width:6px;height:6px;background:white;border-radius:1px;"></div>
+    </div>`,
+    className: "",
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
   });
 };
 
@@ -82,18 +108,22 @@ const StatCard = ({
   label,
   value,
   color,
+  suffix,
 }: {
   icon: React.ElementType;
   label: string;
-  value: number;
+  value: number | string;
   color: string;
+  suffix?: string;
 }) => (
   <div className="glass-panel rounded-lg px-4 py-3 flex items-center gap-3 min-w-[140px]">
     <div className={`p-2 rounded-md ${color}`}>
       <Icon className="w-4 h-4" />
     </div>
     <div>
-      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+      <p className="text-xl font-bold text-foreground leading-none">
+        {value}{suffix && <span className="text-xs font-normal text-muted-foreground ml-0.5">{suffix}</span>}
+      </p>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{label}</p>
     </div>
   </div>
@@ -112,6 +142,7 @@ const CentralOperacional = () => {
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const [dispatch, setDispatch] = useState<{ alertId: string; alert: Alert; result: DispatchResult } | null>(null);
   const [dispatchConfirming, setDispatchConfirming] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(true);
   const prevCountRef = useRef(0);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
@@ -120,6 +151,7 @@ const CentralOperacional = () => {
   const vehicleMarkerCache = useRef<Map<string, L.Marker>>(new Map());
   const routeLineRef = useRef<L.Polyline | null>(null);
   const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heatLayerRef = useRef<L.Layer | null>(null);
 
   useEffect(() => {
     if (!localStorage.getItem("sos-auth")) navigate("/");
@@ -138,12 +170,48 @@ const CentralOperacional = () => {
     L.control.zoom({ position: "bottomright" }).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
     vehicleMarkersRef.current = L.layerGroup().addTo(map);
+
+    // Add police bases
+    POLICE_BASES.forEach((base) => {
+      L.marker([base.lat, base.lng], { icon: createBaseIcon() })
+        .addTo(map)
+        .bindPopup(
+          `<div style="font-family:Inter;font-size:12px;color:#e2e8f0;background:#0f172a;padding:12px;border-radius:8px;border:1px solid #eab30844;min-width:180px;">
+            <strong style="font-size:13px;">🏛️ ${base.name}</strong><br/>
+            <span style="color:#eab308;font-size:11px;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">● BASE POLICIAL</span>
+          </div>`,
+          { className: "custom-popup" }
+        );
+    });
+
     mapInstance.current = map;
     return () => {
       map.remove();
       mapInstance.current = null;
     };
   }, []);
+
+  /* ── Heatmap layer ── */
+  const updateHeatmap = useCallback((alertList: Alert[]) => {
+    if (!mapInstance.current) return;
+    if (heatLayerRef.current) {
+      mapInstance.current.removeLayer(heatLayerRef.current);
+      heatLayerRef.current = null;
+    }
+    if (!showHeatmap || alertList.length === 0) return;
+    const points: [number, number, number][] = alertList.map((a) => [
+      a.latitude,
+      a.longitude,
+      a.status === "pendente" ? 1.0 : a.status === "em atendimento" ? 0.7 : 0.3,
+    ]);
+    heatLayerRef.current = (L as any).heatLayer(points, {
+      radius: 35,
+      blur: 25,
+      maxZoom: 17,
+      minOpacity: 0.4,
+      gradient: { 0.2: "#22c55e", 0.5: "#eab308", 0.8: "#f97316", 1.0: "#ef4444" },
+    }).addTo(mapInstance.current);
+  }, [showHeatmap]);
 
   /* ── Update markers ── */
   const updateMarkers = useCallback((alertList: Alert[]) => {
@@ -165,19 +233,20 @@ const CentralOperacional = () => {
       markersRef.current!.addLayer(marker);
     });
 
+    updateHeatmap(alertList);
+
     const pending = alertList.find((a) => a.status === "pendente");
     if (pending) {
       mapInstance.current.setView([pending.latitude, pending.longitude], 14, { animate: true });
     }
-  }, []);
+  }, [updateHeatmap]);
 
-  /* ── Update vehicle markers (smooth movement, no recreation) ── */
+  /* ── Update vehicle markers (smooth movement) ── */
   const updateVehicleMarkers = useCallback((agentList: Agent[]) => {
     if (!vehicleMarkersRef.current || !mapInstance.current) return;
     const cache = vehicleMarkerCache.current;
     const activeIds = new Set(agentList.map((a) => a.id));
 
-    // Remove markers for agents no longer present
     cache.forEach((marker, id) => {
       if (!activeIds.has(id)) {
         vehicleMarkersRef.current!.removeLayer(marker);
@@ -194,11 +263,9 @@ const CentralOperacional = () => {
         </div>`;
 
       if (existing) {
-        // Smooth move — only update position, don't recreate
         existing.setLatLng([agent.latitude, agent.longitude]);
         existing.setPopupContent(popupHtml);
       } else {
-        // New agent — create marker
         const marker = L.marker([agent.latitude, agent.longitude], {
           icon: createVehicleIcon(),
         });
@@ -215,7 +282,6 @@ const CentralOperacional = () => {
     if (!result) return;
     setDispatch({ alertId: alert.id, alert, result });
 
-    // Draw route line on map
     if (mapInstance.current) {
       if (routeLineRef.current) {
         mapInstance.current.removeLayer(routeLineRef.current);
@@ -225,14 +291,12 @@ const CentralOperacional = () => {
         { color: "#3b82f6", weight: 3, opacity: 0.8, dashArray: "8, 8" }
       ).addTo(mapInstance.current);
 
-      // Fit bounds to show both points
       mapInstance.current.fitBounds(
         [[alert.latitude, alert.longitude], [result.agent.latitude, result.agent.longitude]],
         { padding: [60, 60], animate: true }
       );
     }
 
-    // Blink the vehicle marker
     if (blinkIntervalRef.current) clearInterval(blinkIntervalRef.current);
     const marker = vehicleMarkerCache.current.get(result.agent.id);
     if (marker) {
@@ -252,7 +316,6 @@ const CentralOperacional = () => {
     if (!dispatch) return;
     setDispatchConfirming(true);
     await handleStatusUpdate(dispatch.alertId, "em atendimento");
-    // Clean up route and blink
     if (routeLineRef.current && mapInstance.current) {
       mapInstance.current.removeLayer(routeLineRef.current);
       routeLineRef.current = null;
@@ -286,7 +349,7 @@ const CentralOperacional = () => {
     setDispatch(null);
   }, [dispatch]);
 
-  /* ── Polling ── */
+  /* ── Polling: Alerts ── */
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -303,7 +366,6 @@ const CentralOperacional = () => {
           toast("🚨 Nova ocorrência recebida!", {
             description: "Um novo alerta de emergência chegou ao sistema.",
           });
-          // Auto-dispatch for first new pending alert
           const firstPending = newAlerts.find((a) => a.status === "pendente");
           if (firstPending) {
             triggerAutoDispatch(firstPending);
@@ -329,12 +391,12 @@ const CentralOperacional = () => {
     };
   }, [updateMarkers, triggerAutoDispatch]);
 
-  /* ── Vehicle Polling (3s) ── */
+  /* ── Polling: Vehicles (2s via /units) ── */
   useEffect(() => {
     let active = true;
-    const loadAgents = async () => {
+    const loadUnits = async () => {
       try {
-        const data = await fetchAgents();
+        const data = await fetchUnits();
         if (!active) return;
         setAgents(data);
         updateVehicleMarkers(data);
@@ -342,8 +404,8 @@ const CentralOperacional = () => {
         // silently fail
       }
     };
-    loadAgents();
-    const interval = setInterval(loadAgents, 2000);
+    loadUnits();
+    const interval = setInterval(loadUnits, 2000);
     return () => {
       active = false;
       clearInterval(interval);
@@ -371,13 +433,19 @@ const CentralOperacional = () => {
   const pendingCount = alerts.filter((a) => a.status === "pendente").length;
   const attendingCount = alerts.filter((a) => a.status === "em atendimento").length;
   const concludedCount = alerts.filter((a) => a.status === "concluído" || a.status === "concluido").length;
+  const activeVehicles = agents.filter((a) => a.status !== "base").length;
 
-  const statusColor = (s: string) =>
-    s === "pendente"
-      ? "text-destructive"
-      : s === "em atendimento"
-      ? "text-warning"
-      : "text-success";
+  // Average response time (simulated based on timestamps)
+  const avgResponseTime = (() => {
+    const attending = alerts.filter((a) => a.status === "em atendimento" && a.createdAt);
+    if (attending.length === 0) return "—";
+    const totalMin = attending.reduce((sum, a) => {
+      const elapsed = (Date.now() - new Date(a.createdAt!).getTime()) / 60000;
+      return sum + elapsed;
+    }, 0);
+    const avg = Math.round(totalMin / attending.length);
+    return `${avg}`;
+  })();
 
   const statusBg = (s: string) =>
     s === "pendente"
@@ -407,23 +475,21 @@ const CentralOperacional = () => {
               <h1 className="text-lg font-bold text-foreground tracking-wider flex items-center gap-2">
                 SOS ESQUADRA
                 <span className="text-muted-foreground font-normal">—</span>
-                <span className="text-primary">CENTRAL OPERACIONAL</span>
+                <span className="text-primary">COMANDO NACIONAL</span>
               </h1>
               <p className="text-[11px] text-muted-foreground tracking-wide">
-                Monitorização de ocorrências em tempo real — Luanda, Angola
+                Centro de Comando e Controlo — Luanda, Angola
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-5">
-            {/* Clock */}
             <div className="glass-panel rounded-lg px-4 py-2 flex items-center gap-2">
               <Clock className="w-3.5 h-3.5 text-primary" />
               <span className="text-sm font-mono font-semibold text-foreground">
                 {clock.toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
             </div>
-            {/* Online indicator */}
             <div className="flex items-center gap-2 glass-panel rounded-lg px-4 py-2">
               <Activity className="w-3.5 h-3.5 text-success animate-pulse" />
               <span className="text-xs font-semibold text-success">Sistema Online</span>
@@ -437,7 +503,8 @@ const CentralOperacional = () => {
           <StatCard icon={AlertTriangle} label="Pendentes" value={pendingCount} color="bg-destructive/15 text-destructive" />
           <StatCard icon={Radio} label="Em Atendimento" value={attendingCount} color="bg-warning/15 text-warning" />
           <StatCard icon={CheckCircle} label="Concluídas" value={concludedCount} color="bg-success/15 text-success" />
-          <StatCard icon={Car} label="Viaturas" value={agents.length} color="bg-blue-500/15 text-blue-400" />
+          <StatCard icon={Car} label="Viaturas Activas" value={activeVehicles} color="bg-blue-500/15 text-blue-400" suffix={`/${agents.length}`} />
+          <StatCard icon={Timer} label="Tempo Médio" value={avgResponseTime} color="bg-accent/15 text-accent" suffix="min" />
         </div>
 
         {/* ── CONTENT ── */}
@@ -534,7 +601,6 @@ const CentralOperacional = () => {
                         flashIds.has(alert.id) ? "animate-pulse ring-2 ring-destructive" : ""
                       }`}
                     >
-                      {/* Status & ID */}
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-sm tracking-wider ${statusBg(alert.status)}`}>
                           {alert.status}
@@ -544,7 +610,6 @@ const CentralOperacional = () => {
                         </span>
                       </div>
 
-                      {/* Name */}
                       <div className="flex items-center gap-2 mb-2">
                         <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                         <p className="text-sm font-semibold text-foreground truncate">
@@ -552,7 +617,6 @@ const CentralOperacional = () => {
                         </p>
                       </div>
 
-                      {/* Details */}
                       <div className="space-y-1 mb-3">
                         {alert.phone && (
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -572,7 +636,6 @@ const CentralOperacional = () => {
                         )}
                       </div>
 
-                      {/* Actions */}
                       <div className="flex gap-2">
                         {alert.status === "pendente" && (
                           <>
@@ -628,14 +691,14 @@ const CentralOperacional = () => {
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-shrink-0 bg-card/30">
               <MapPin className="w-4 h-4 text-primary" />
               <h3 className="font-bold text-foreground text-sm tracking-wide">
-                MAPA EM TEMPO REAL — LUANDA
+                MAPA COMANDO NACIONAL — LUANDA
               </h3>
               <div className="ml-auto flex items-center gap-4 text-[10px]">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" /> Pendente
+                  <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" /> SOS
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-warning" /> Em atendimento
+                  <span className="w-2.5 h-2.5 rounded-full bg-warning" /> Atendimento
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-success" /> Concluída
@@ -643,6 +706,15 @@ const CentralOperacional = () => {
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> 🚓 Viatura
                 </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-warning" /> 🏛️ Base
+                </span>
+                <button
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors ${showHeatmap ? "bg-orange-500/20 text-orange-400" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <Flame className="w-3 h-3" /> Heatmap
+                </button>
               </div>
             </div>
             <div ref={mapRef} className="flex-1 min-h-[400px]" />
@@ -650,7 +722,6 @@ const CentralOperacional = () => {
         </div>
       </main>
 
-      {/* Pulse animation for markers */}
       <style>{`
         @keyframes pulse-dot {
           0%, 100% { transform: scale(1); opacity: 1; }
