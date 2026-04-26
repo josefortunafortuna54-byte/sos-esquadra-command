@@ -1,16 +1,26 @@
-export interface Alert {
+export interface Occurrence {
   id: string;
   _id?: string;
+<<<<<<< HEAD
   name: string;
   phone?: string;
   status: string;
   latitude: number;
   longitude: number;
+=======
+  userName: string;
+  type: string;
+  status: "Pendente" | "Despachado" | "A caminho" | "No local" | "Finalizado";
+  location?: { lat: number; lng: number };
+  agent?: { name: string } | null;
+  eta?: number | null;
+>>>>>>> 6f0b50e (fix: ligar alertas ao servidor real /api/occurrences)
   createdAt?: string;
 }
 
-const API_BASE = "https://sos-server.onrender.com";
+export const API_BASE = "https://sos-server.onrender.com";
 
+<<<<<<< HEAD
 /* ── Dados de demonstração (fallback quando API offline) ── */
 const MOCK_ALERTS: Alert[] = [
   {
@@ -229,4 +239,58 @@ export async function findClosestAgent(lat: number, lng: number): Promise<Dispat
     if (!closest) return null;
     return { agent: closest, distance: Math.round(minDist) };
   }
+=======
+// ── Listar ocorrências ──────────────────────────────────────────
+export async function fetchOccurrences(): Promise<Occurrence[]> {
+  const res = await fetch(`${API_BASE}/api/occurrences`);
+  if (!res.ok) throw new Error("Erro ao buscar ocorrências");
+  const data = await res.json();
+  return data.map((o: any) => ({
+    id: o._id || o.id,
+    _id: o._id,
+    userName: o.userName || "Desconhecido",
+    type: o.type || "Emergência",
+    status: o.status || "Pendente",
+    location: o.location || null,
+    agent: o.agent || null,
+    eta: o.eta ?? null,
+    createdAt: o.createdAt,
+  }));
 }
+
+// ── Actualizar status ───────────────────────────────────────────
+export async function updateStatus(
+  id: string,
+  status: Occurrence["status"]
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/occurrences/${id}/status`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error("Erro ao actualizar status");
+>>>>>>> 6f0b50e (fix: ligar alertas ao servidor real /api/occurrences)
+}
+
+// ── Aceitar ocorrência ──────────────────────────────────────────
+export async function acceptOccurrence(
+  id: string,
+  agentId: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/occurrences/${id}/accept`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agentId }),
+  });
+  if (!res.ok) throw new Error("Erro ao aceitar ocorrência");
+}
+
+// ── Buscar posições GPS ─────────────────────────────────────────
+export async function fetchGpsPositions(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/api/gps/latest`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// Alias de compatibilidade (usado em código antigo)
+export { fetchOccurrences as fetchAlerts };
