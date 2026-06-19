@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Clock, RefreshCw, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchOccurrences, updateStatus, type Occurrence } from "@/lib/alertsApi";
+import { fetchOccurrences, updateStatus, subscribeToOccurrences, type Occurrence } from "@/lib/alertsApi";
 
 const statusStyles: Record<string, string> = {
   Pendente: "border-l-red-500 bg-red-500/5",
@@ -41,23 +41,24 @@ const EmergencyAlerts = () => {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     try {
       const data = await fetchOccurrences();
-      setOccurrences(data.filter((o) => o.status !== "Finalizado").slice(0, 8));
+      setOccurrences(data);
       setError(null);
     } catch {
-      setError("Sem ligação ao servidor");
+      setError("Sem ligação ao Supabase");
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-  }, [load]);
+    // Realtime — receber actualizações instantâneas
+    const unsubscribe = subscribeToOccurrences(setOccurrences);
+    return unsubscribe;
+  }, []);
 
   const handleAdvance = async (id: string, status: Occurrence["status"]) => {
     const next = nextStatus[status];
@@ -65,11 +66,6 @@ const EmergencyAlerts = () => {
     setUpdating(id);
     try {
       await updateStatus(id, next);
-      setOccurrences((prev) =>
-        prev
-          .map((o) => (o.id === id ? { ...o, status: next } : o))
-          .filter((o) => o.status !== "Finalizado")
-      );
     } finally {
       setUpdating(null);
     }
@@ -80,16 +76,14 @@ const EmergencyAlerts = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-destructive animate-pulse" />
-          <h3 className="font-semibold text-foreground text-sm">
-            Alertas de Emergência
-          </h3>
+          <h3 className="font-semibold text-foreground text-sm">Alertas de Emergência</h3>
           {occurrences.filter((o) => o.status === "Pendente").length > 0 && (
             <span className="bg-destructive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
               {occurrences.filter((o) => o.status === "Pendente").length}
             </span>
           )}
         </div>
-        <button onClick={load} className="text-muted-foreground hover:text-foreground transition-colors" title="Actualizar">
+        <button onClick={load} className="text-muted-foreground hover:text-foreground transition-colors">
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -97,17 +91,13 @@ const EmergencyAlerts = () => {
       <div className="flex-1 overflow-y-auto space-y-2 min-h-0 max-h-[360px]">
         {loading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-white/5 rounded animate-pulse" />
-            ))}
+            {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-white/5 rounded animate-pulse" />)}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-32 text-center">
             <AlertTriangle className="w-8 h-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">{error}</p>
-            <button onClick={load} className="mt-2 text-xs text-primary hover:underline">
-              Tentar novamente
-            </button>
+            <button onClick={load} className="mt-2 text-xs text-primary hover:underline">Tentar novamente</button>
           </div>
         ) : occurrences.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-center">
@@ -130,16 +120,11 @@ const EmergencyAlerts = () => {
                     {oc.status}
                   </span>
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    {timeAgo(oc.createdAt)}
+                    <Clock className="w-3 h-3" />{timeAgo(oc.createdAt)}
                   </span>
                 </div>
                 <p className="text-xs text-foreground/90 font-medium">{oc.type}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {oc.userName}
-                  {oc.agent && ` · Agente: ${oc.agent.name}`}
-                  {oc.eta && ` · ETA: ${oc.eta}min`}
-                </p>
+                <p className="text-[10px] text-muted-foreground">{oc.userName}</p>
                 {nextStatus[oc.status] && (
                   <button
                     onClick={() => handleAdvance(oc.id, oc.status)}
@@ -156,7 +141,7 @@ const EmergencyAlerts = () => {
       </div>
 
       <p className="text-[10px] text-muted-foreground text-center mt-3 pt-3 border-t border-border/30">
-        Actualiza automaticamente a cada 10s
+        ⚡ Tempo real via Supabase
       </p>
     </div>
   );
