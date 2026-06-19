@@ -1,135 +1,150 @@
-import { useState } from "react";
-import { Car, Search, AlertTriangle, MapPin, Clock, CheckCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { Car, Search, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import DashboardSidebar from "@/components/DashboardSidebar";
+import { supabase } from "@/lib/supabase";
 
-interface Vehicle {
-  id: number;
+interface Veiculo {
+  id: string;
   marca: string;
   modelo: string;
   matricula: string;
   cor: string;
-  local: string;
-  data: string;
-  estado: "Procurado" | "Recuperado" | "Confirmado";
-  proprietario: string;
+  local_furto: string;
+  status: "Procurado" | "Confirmado" | "Recuperado";
+  created_at: string;
 }
 
-const vehicles: Vehicle[] = [
-  { id: 1, marca: "Toyota", modelo: "Hilux", matricula: "LD-42-91-AB", cor: "Branco", local: "Maianga", data: "10/02/2026 08:15", estado: "Procurado", proprietario: "Manuel Domingos" },
-  { id: 2, marca: "Hyundai", modelo: "Tucson", matricula: "LD-18-73-CD", cor: "Preto", local: "Talatona", data: "09/02/2026 22:40", estado: "Procurado", proprietario: "Carla Sousa" },
-  { id: 3, marca: "Toyota", modelo: "Land Cruiser", matricula: "LD-55-02-EF", cor: "Cinza", local: "Viana", data: "09/02/2026 14:20", estado: "Recuperado", proprietario: "José Baptista" },
-  { id: 4, marca: "Kia", modelo: "Sportage", matricula: "LD-33-67-GH", cor: "Azul", local: "Rangel", data: "08/02/2026 19:05", estado: "Confirmado", proprietario: "Ana Fernandes" },
-  { id: 5, marca: "Nissan", modelo: "Navara", matricula: "LD-71-48-IJ", cor: "Vermelho", local: "Sambizanga", data: "08/02/2026 06:30", estado: "Procurado", proprietario: "Pedro Lourenço" },
-  { id: 6, marca: "Toyota", modelo: "Corolla", matricula: "LD-29-84-KL", cor: "Prata", local: "Cazenga", data: "07/02/2026 11:50", estado: "Recuperado", proprietario: "Maria Gomes" },
-];
-
-const estadoConfig: Record<string, { style: string; icon: typeof AlertTriangle }> = {
-  Procurado: { style: "bg-destructive/20 text-destructive", icon: AlertTriangle },
-  Recuperado: { style: "bg-success/20 text-success", icon: CheckCircle },
-  Confirmado: { style: "bg-warning/20 text-warning", icon: Clock },
+const statusStyle: Record<string, string> = {
+  Procurado:   "bg-red-500/20 text-red-400 border border-red-500/30",
+  Confirmado:  "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
+  Recuperado:  "bg-green-500/20 text-green-400 border border-green-500/30",
 };
 
-const VeiculosPage = () => {
-  const [search, setSearch] = useState("");
+const statusIcon: Record<string, JSX.Element> = {
+  Procurado:   <AlertTriangle className="w-3 h-3" />,
+  Confirmado:  <Clock className="w-3 h-3" />,
+  Recuperado:  <CheckCircle className="w-3 h-3" />,
+};
 
-  const filtered = vehicles.filter(
-    (v) =>
-      v.matricula.toLowerCase().includes(search.toLowerCase()) ||
-      v.marca.toLowerCase().includes(search.toLowerCase()) ||
-      v.modelo.toLowerCase().includes(search.toLowerCase()) ||
-      v.proprietario.toLowerCase().includes(search.toLowerCase())
+export default function VeiculosPage() {
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pesquisa, setPesquisa] = useState("");
+
+  const carregar = async () => {
+    const { data } = await supabase
+      .from("stolen_vehicles")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setVeiculos((data ?? []) as Veiculo[]);
+    setLoading(false);
+  };
+
+  const actualizarStatus = async (id: string, status: Veiculo["status"]) => {
+    await supabase.from("stolen_vehicles").update({ status }).eq("id", id);
+    setVeiculos(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+  };
+
+  useEffect(() => {
+    carregar();
+    const ch = supabase.channel("veiculos")
+      .on("postgres_changes", { event: "*", schema: "public", table: "stolen_vehicles" }, carregar)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  const filtrados = veiculos.filter(v =>
+    `${v.marca} ${v.modelo} ${v.matricula} ${v.local_furto}`.toLowerCase()
+      .includes(pesquisa.toLowerCase())
   );
 
-  const stats = {
-    total: vehicles.length,
-    procurados: vehicles.filter((v) => v.estado === "Procurado").length,
-    recuperados: vehicles.filter((v) => v.estado === "Recuperado").length,
-  };
+  const total      = veiculos.length;
+  const procurados = veiculos.filter(v => v.status === "Procurado").length;
+  const recuperados = veiculos.filter(v => v.status === "Recuperado").length;
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
       <main className="ml-64 p-6">
-        <header className="mb-6">
-          <h1 className="text-xl font-bold text-foreground">Veículos Furtados</h1>
-          <p className="text-sm text-muted-foreground">Registo e rastreamento de viaturas</p>
-        </header>
+        <h1 className="text-xl font-bold text-foreground mb-1">Veículos Furtados</h1>
+        <p className="text-sm text-muted-foreground mb-6">Registo e rastreamento de viaturas</p>
 
-        {/* Mini stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6 max-w-lg">
-          <div className="glass-panel rounded-lg p-4 text-center">
-            <p className="text-2xl font-bold font-mono text-foreground">{stats.total}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
-          </div>
-          <div className="glass-panel rounded-lg p-4 text-center border-destructive/20">
-            <p className="text-2xl font-bold font-mono text-destructive">{stats.procurados}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Procurados</p>
-          </div>
-          <div className="glass-panel rounded-lg p-4 text-center border-success/20">
-            <p className="text-2xl font-bold font-mono text-success">{stats.recuperados}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Recuperados</p>
-          </div>
+        {/* Contadores */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {[
+            { label: "TOTAL", value: total, color: "text-foreground" },
+            { label: "PROCURADOS", value: procurados, color: "text-red-400" },
+            { label: "RECUPERADOS", value: recuperados, color: "text-green-400" },
+          ].map(s => (
+            <div key={s.label} className="glass-panel rounded-lg p-4 text-center">
+              <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="relative mb-4 max-w-sm">
+        {/* Pesquisa */}
+        <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Pesquisar matrícula, marca..." className="pl-10 bg-secondary border-border" />
+          <input
+            className="w-full max-w-md pl-9 pr-4 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+            placeholder="Pesquisar matrícula, marca..."
+            value={pesquisa}
+            onChange={e => setPesquisa(e.target.value)}
+          />
         </div>
 
+        {/* Tabela */}
         <div className="glass-panel rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-secondary/50">
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Viatura</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Matrícula</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Cor</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Local</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Proprietário</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Data</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Estado</th>
+              <tr className="border-b border-border/50">
+                {["Viatura", "Matrícula", "Cor", "Local", "Data", "Estado", "Acção"].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs text-muted-foreground font-medium">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v, i) => {
-                const cfg = estadoConfig[v.estado];
-                return (
-                  <motion.tr
-                    key={v.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="border-b border-border/50 hover:bg-secondary/30 transition-colors"
-                  >
-                    <td className="py-3 px-4 text-foreground font-medium">
-                      <div className="flex items-center gap-2">
-                        <Car className="w-4 h-4 text-muted-foreground" />
-                        {v.marca} {v.modelo}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-primary">{v.matricula}</td>
-                    <td className="py-3 px-4 text-foreground">{v.cor}</td>
-                    <td className="py-3 px-4 text-foreground">
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" />{v.local}</span>
-                    </td>
-                    <td className="py-3 px-4 text-foreground">{v.proprietario}</td>
-                    <td className="py-3 px-4 text-muted-foreground font-mono">{v.data}</td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${cfg.style}`}>
-                        <cfg.icon className="w-3 h-3" />
-                        {v.estado}
-                      </span>
-                    </td>
-                  </motion.tr>
-                );
-              })}
+              {loading ? (
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">A carregar...</td></tr>
+              ) : filtrados.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Sem veículos registados</td></tr>
+              ) : filtrados.map(v => (
+                <tr key={v.id} className="border-b border-border/30 hover:bg-white/5 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-foreground">{v.marca} {v.modelo}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-primary font-mono text-xs">{v.matricula}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{v.cor}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{v.local_furto}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {new Date(v.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${statusStyle[v.status]}`}>
+                      {statusIcon[v.status]} {v.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={v.status}
+                      onChange={e => actualizarStatus(v.id, e.target.value as Veiculo["status"])}
+                      className="text-xs bg-secondary border border-border rounded px-2 py-1 text-foreground"
+                    >
+                      <option value="Procurado">Procurado</option>
+                      <option value="Confirmado">Confirmado</option>
+                      <option value="Recuperado">Recuperado</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </main>
     </div>
   );
-};
-
-export default VeiculosPage;
+}
