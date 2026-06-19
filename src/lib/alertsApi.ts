@@ -96,3 +96,31 @@ export function subscribeToOccurrences(
 
 // Alias compatibilidade
 export { fetchOccurrences as fetchAlerts }
+
+// ── Aliases de compatibilidade ──────────────────────────────────
+export type Alert = Occurrence
+export type DispatchResult = { agent: Agent; distance: number }
+
+export async function updateAlertStatus(id: string, status: Occurrence['status']): Promise<void> {
+  return updateStatus(id, status)
+}
+
+export async function fetchUnits(): Promise<Agent[]> {
+  return fetchAgents()
+}
+
+export async function findClosestAgent(lat: number, lng: number): Promise<DispatchResult | null> {
+  const agents = await fetchAgents()
+  if (agents.length === 0) return null
+  const toRad = (d: number) => (d * Math.PI) / 180
+  let closest: Agent | null = null
+  let minDist = Infinity
+  for (const a of agents) {
+    const dLat = toRad(a.latitude - lat)
+    const dLng = toRad(a.longitude - lng)
+    const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000
+    if (dist < minDist) { minDist = dist; closest = a }
+  }
+  if (!closest) return null
+  return { agent: closest, distance: Math.round(minDist) }
+}
