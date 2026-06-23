@@ -100,43 +100,21 @@ export default function AgentesPage() {
       const codigo = gerarCodigo(agentes.length + 1);
       const email = `${codigo.toLowerCase().replace("-", "")}@sos.ao`;
 
-      // 1. Criar conta no Supabase Auth
-      // usar função RPC
-        ? await (supabase as any).auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-          })
-        : { data: null, error: new Error("sem permissão admin") };
-
-      // Fallback: usar signUp normal
-      let authId = authData?.user?.id;
-      if (!authId) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (signUpError) throw signUpError;
-        authId = signUpData.user?.id;
-      }
-
-      if (!authId) throw new Error("Não foi possível criar a conta.");
-
-      // 2. Criar perfil na tabela police_agents
-      const { error: dbError } = await supabase.from("police_agents").insert({
-        auth_id:   authId,
-        nome:      form.nome.trim(),
-        email:     email,
-        codigo:    codigo,
-        esquadra:  form.esquadra.trim(),
-        provincia: form.provincia,
-        role:      form.patente === "Administrador" ? "admin" : "police",
-        ativo:     true,
+      // Criar agente via função SQL (cria auth + perfil de uma vez)
+      const { data: rpcData, error: rpcError } = await supabase.rpc("criar_agente", {
+        p_email:     email,
+        p_password:  password,
+        p_nome:      form.nome.trim(),
+        p_codigo:    codigo,
+        p_esquadra:  form.esquadra.trim(),
+        p_provincia: form.provincia,
+        p_role:      form.patente === "Administrador" ? "admin" : "police",
       });
 
-      if (dbError) throw dbError;
+      if (rpcError) throw rpcError;
+      if (!rpcData) throw new Error("Não foi possível criar a conta.");
 
-      // 3. Mostrar credenciais
+            // 3. Mostrar credenciais
       setCredenciais({ email, password, codigo });
       setForm({ nome: "", patente: "Agente", esquadra: "", provincia: "Luanda", telefone: "" });
       await carregar();
