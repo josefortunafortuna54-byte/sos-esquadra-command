@@ -39,12 +39,8 @@ const DashboardSidebar = () => {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50">
-      <div className="p-5 border-b border-sidebar-border flex flex-col items-center">
-        <img src={sosLogo} alt="SOS Esquadra" className="w-24 h-24 object-contain drop-shadow-xl" />
-        <h2 className="font-bold text-foreground text-sm tracking-wide mt-1">
-          SOS ESQUADRA
-        </h2>
-        <p className="text-[10px] text-muted-foreground">Comando Central</p>
+      <div className="p-4 border-b border-sidebar-border flex justify-center">
+        <img src={sosLogo} alt="SOS Esquadra" className="w-14 h-14 object-contain drop-shadow-lg" />
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

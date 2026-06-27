@@ -14,6 +14,7 @@ import ChatPage from "./pages/ChatPage";
 import MapaAoVivoPage from "./pages/MapaAoVivoPage";
 import AlertasPage from "./pages/AlertasPage";
 import OcorrenciasPage from "./pages/OcorrenciasPage";
+import ConfigPage from "./pages/ConfigPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,7 +31,7 @@ const App = () => (
           <Route path="/dashboard/mapa" element={<MapaAoVivoPage />} />
           <Route path="/dashboard/alertas" element={<AlertasPage />} />
           <Route path="/dashboard/crimes" element={<OcorrenciasPage />} />
-          <Route path="/dashboard/config" element={<Dashboard />} />
+          <Route path="/dashboard/config" element={<ConfigPage />} />
           <Route path="/dashboard/agentes" element={<AgentesPage />} />
           <Route path="/dashboard/veiculos" element={<VeiculosPage />} />
           <Route path="/dashboard/notificacoes" element={<NotificacoesPage />} />
