@@ -4,6 +4,7 @@ export interface Occurrence {
   id: string
   name: string
   type: string
+  descricao?: string
   status: 'Pendente' | 'Despachado' | 'A caminho' | 'No local' | 'Finalizado'
   latitude: number
   longitude: number
@@ -35,6 +36,30 @@ export async function fetchOccurrences(): Promise<Occurrence[]> {
     id: o.id,
     name: o.users?.nome ?? 'Desconhecido',
     type: o.tipo ?? 'Emergência',
+    descricao: o.descricao ?? '',
+    status: o.status ?? 'Pendente',
+    latitude: o.latitude ?? -8.839,
+    longitude: o.longitude ?? 13.2894,
+    phone: o.users?.telefone,
+    agent: null,
+    createdAt: o.created_at,
+  }))
+}
+
+export async function fetchAllOccurrences(limit = 100): Promise<Occurrence[]> {
+  const { data, error } = await supabase
+    .from('occurrences')
+    .select('*, users(nome, telefone)')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(error.message)
+
+  return (data ?? []).map((o: any) => ({
+    id: o.id,
+    name: o.users?.nome ?? 'Desconhecido',
+    type: o.tipo ?? 'Emergência',
+    descricao: o.descricao ?? '',
     status: o.status ?? 'Pendente',
     latitude: o.latitude ?? -8.839,
     longitude: o.longitude ?? 13.2894,

@@ -63,7 +63,7 @@ const Login = () => {
       >
         <div className="glass-panel rounded-lg p-8">
           <div className="flex flex-col items-center mb-8">
-            <img src={sosLogo} alt="SOS Esquadra" className="w-28 h-28 object-contain mb-2" />
+            <img src={sosLogo} alt="SOS Esquadra" className="w-40 h-40 object-contain mb-2 drop-shadow-xl" />
             <h1 className="text-2xl font-bold tracking-tight text-foreground">SOS ESQUADRA</h1>
             <p className="text-sm text-muted-foreground mt-1">Sistema de Comando Policial — Luanda</p>
           </div>
