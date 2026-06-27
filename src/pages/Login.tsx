@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import sosLogo from "@/assets/sos-logo.png";
+import luandaHero from "@/assets/luanda-hero.jpg";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -54,14 +55,18 @@ const Login = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background">
+    <div
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url(${luandaHero})` }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/80" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
         className="relative z-10 w-full max-w-md px-6"
       >
-        <div className="glass-panel rounded-lg p-8">
+        <div className="backdrop-blur-xl bg-background/30 rounded-lg p-8 border border-border/20 shadow-2xl">
           <div className="flex flex-col items-center mb-8">
             <img src={sosLogo} alt="SOS Esquadra" className="w-40 h-40 object-contain mb-2 drop-shadow-xl" />
             <h1 className="text-2xl font-bold tracking-tight text-foreground">SOS ESQUADRA</h1>

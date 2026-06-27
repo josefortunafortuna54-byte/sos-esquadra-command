@@ -40,7 +40,7 @@ const DashboardSidebar = () => {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50">
       <div className="p-4 border-b border-sidebar-border flex justify-center">
-        <img src={sosLogo} alt="SOS Esquadra" className="w-14 h-14 object-contain drop-shadow-lg" />
+        <img src={sosLogo} alt="SOS Esquadra" className="w-28 h-28 object-contain drop-shadow-xl" />
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
