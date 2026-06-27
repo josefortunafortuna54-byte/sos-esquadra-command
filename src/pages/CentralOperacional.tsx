@@ -20,11 +20,16 @@ import {
   Timer,
   Building2,
   Flame,
+  MessageSquare,
+  Bot,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import DashboardSidebar from "@/components/DashboardSidebar";
+import { ChatPanel } from "@/components/ChatPanel";
+import { AIAssistant } from "@/components/AIAssistant";
 import { fetchAlerts, updateAlertStatus, fetchUnits, findClosestAgent, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
 
@@ -143,6 +148,8 @@ const CentralOperacional = () => {
   const [dispatch, setDispatch] = useState<{ alertId: string; alert: Alert; result: DispatchResult } | null>(null);
   const [dispatchConfirming, setDispatchConfirming] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(true);
+  const [showAI, setShowAI] = useState(false);
+  const [selectedOccForAI, setSelectedOccForAI] = useState<Alert | null>(null);
   const prevCountRef = useRef(0);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
@@ -508,7 +515,7 @@ const CentralOperacional = () => {
         </div>
 
         {/* ── CONTENT ── */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
           {/* Alert List - 35% */}
           <div className="lg:col-span-5 flex flex-col border-r border-border overflow-hidden">
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-shrink-0 bg-card/30">
@@ -658,6 +665,22 @@ const CentralOperacional = () => {
                             >
                               <Zap className="w-3 h-3 mr-1" />IA
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => navigate(`/dashboard/chat?id=${alert.id}`)}
+                            >
+                              <MessageSquare className="w-3 h-3 mr-1" />Chat
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs border-purple-500/40 text-purple-400 hover:bg-purple-500/10"
+                              onClick={() => { setSelectedOccForAI(alert); setShowAI(true); }}
+                            >
+                              <Bot className="w-3 h-3 mr-1" />IA
+                            </Button>
                           </>
                         )}
                         {alert.status === "em atendimento" && (
@@ -687,7 +710,7 @@ const CentralOperacional = () => {
           </div>
 
           {/* Map - 65% */}
-          <div className="lg:col-span-7 flex flex-col overflow-hidden">
+          <div className="lg:col-span-7 flex flex-col min-h-0 overflow-hidden">
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-shrink-0 bg-card/30">
               <MapPin className="w-4 h-4 text-primary" />
               <h3 className="font-bold text-foreground text-sm tracking-wide">
@@ -717,9 +740,27 @@ const CentralOperacional = () => {
                 </button>
               </div>
             </div>
-            <div ref={mapRef} className="flex-1 min-h-[400px]" />
+            <div ref={mapRef} className="flex-1 min-h-0 w-full" />
           </div>
         </div>
+        {/* ── Floating AI Button ── */}
+        <button
+          onClick={() => { setSelectedOccForAI(null); setShowAI(true); }}
+          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg flex items-center justify-center transition-all hover:scale-110"
+          title="Assistente IA"
+        >
+          <Bot className="w-6 h-6" />
+        </button>
+
+        {/* ── AI Assistant Panel ── */}
+        <Sheet open={showAI} onOpenChange={setShowAI}>
+          <SheetContent className="w-[420px] sm:w-[480px] p-0">
+            <AIAssistant
+              occurrenceId={selectedOccForAI?.id ?? null}
+              onClose={() => { setShowAI(false); setSelectedOccForAI(null); }}
+            />
+          </SheetContent>
+        </Sheet>
       </main>
 
       <style>{`

@@ -9,6 +9,9 @@ import AgentesPage from "./pages/AgentesPage";
 import VeiculosPage from "./pages/VeiculosPage";
 import NotificacoesPage from "./pages/NotificacoesPage";
 import CentralOperacional from "./pages/CentralOperacional";
+import RelatoriosPage from "./pages/RelatoriosPage";
+import ChatPage from "./pages/ChatPage";
+import MapaAoVivoPage from "./pages/MapaAoVivoPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,10 +25,16 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/mapa" element={<MapaAoVivoPage />} />
+          <Route path="/dashboard/alertas" element={<Dashboard />} />
+          <Route path="/dashboard/crimes" element={<Dashboard />} />
+          <Route path="/dashboard/config" element={<Dashboard />} />
           <Route path="/dashboard/agentes" element={<AgentesPage />} />
           <Route path="/dashboard/veiculos" element={<VeiculosPage />} />
           <Route path="/dashboard/notificacoes" element={<NotificacoesPage />} />
           <Route path="/dashboard/central" element={<CentralOperacional />} />
+          <Route path="/dashboard/relatorios" element={<RelatoriosPage />} />
+          <Route path="/dashboard/chat" element={<ChatPage />} />
           <Route path="/dashboard/*" element={<Dashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

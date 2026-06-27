@@ -10,6 +10,8 @@ import {
   Settings,
   LogOut,
   Radio,
+  MessageSquare,
+  BarChart3,
 } from "lucide-react";
 import sosLogo from "@/assets/sos-logo.png";
 
@@ -21,6 +23,8 @@ const links = [
   { to: "/dashboard/crimes", icon: FileText, label: "Ocorrências" },
   { to: "/dashboard/veiculos", icon: Car, label: "Veículos" },
   { to: "/dashboard/agentes", icon: Users, label: "Agentes" },
+  { to: "/dashboard/chat", icon: MessageSquare, label: "Chat Operacional" },
+  { to: "/dashboard/relatorios", icon: BarChart3, label: "Relatórios" },
   { to: "/dashboard/notificacoes", icon: Bell, label: "Notificações" },
   { to: "/dashboard/config", icon: Settings, label: "Configurações" },
 ];

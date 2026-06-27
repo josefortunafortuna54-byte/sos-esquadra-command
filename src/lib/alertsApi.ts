@@ -2,11 +2,12 @@ import { supabase } from './supabase'
 
 export interface Occurrence {
   id: string
-  userName: string
+  name: string
   type: string
   status: 'Pendente' | 'Despachado' | 'A caminho' | 'No local' | 'Finalizado'
-  latitude?: number
-  longitude?: number
+  latitude: number
+  longitude: number
+  phone?: string
   agent?: { name: string } | null
   createdAt?: string
 }
@@ -20,11 +21,10 @@ export interface Agent {
   updatedAt?: string
 }
 
-// ── Listar ocorrências ──────────────────────────────────────────
 export async function fetchOccurrences(): Promise<Occurrence[]> {
   const { data, error } = await supabase
     .from('occurrences')
-    .select('*, users(nome)')
+    .select('*, users(nome, telefone)')
     .neq('status', 'Finalizado')
     .order('created_at', { ascending: false })
     .limit(20)
@@ -33,17 +33,17 @@ export async function fetchOccurrences(): Promise<Occurrence[]> {
 
   return (data ?? []).map((o: any) => ({
     id: o.id,
-    userName: o.users?.nome ?? 'Desconhecido',
+    name: o.users?.nome ?? 'Desconhecido',
     type: o.tipo ?? 'Emergência',
     status: o.status ?? 'Pendente',
-    latitude: o.latitude,
-    longitude: o.longitude,
+    latitude: o.latitude ?? -8.839,
+    longitude: o.longitude ?? 13.2894,
+    phone: o.users?.telefone,
     agent: null,
     createdAt: o.created_at,
   }))
 }
 
-// ── Actualizar status ───────────────────────────────────────────
 export async function updateStatus(
   id: string,
   status: Occurrence['status']
@@ -56,7 +56,6 @@ export async function updateStatus(
   if (error) throw new Error(error.message)
 }
 
-// ── Localização dos agentes (GPS) ──────────────────────────────
 export async function fetchAgents(): Promise<Agent[]> {
   const { data, error } = await supabase
     .from('agent_locations')
@@ -75,7 +74,6 @@ export async function fetchAgents(): Promise<Agent[]> {
   }))
 }
 
-// ── Subscrever alertas em tempo real ───────────────────────────
 export function subscribeToOccurrences(
   callback: (occurrences: Occurrence[]) => void
 ) {
@@ -94,15 +92,18 @@ export function subscribeToOccurrences(
   return () => supabase.removeChannel(channel)
 }
 
-// Alias compatibilidade
 export { fetchOccurrences as fetchAlerts }
 
-// ── Aliases de compatibilidade ──────────────────────────────────
 export type Alert = Occurrence
 export type DispatchResult = { agent: Agent; distance: number }
 
-export async function updateAlertStatus(id: string, status: Occurrence['status']): Promise<void> {
-  return updateStatus(id, status)
+export async function updateAlertStatus(id: string, status: string): Promise<void> {
+  const { error } = await supabase
+    .from('occurrences')
+    .update({ status })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
 export async function fetchUnits(): Promise<Agent[]> {
