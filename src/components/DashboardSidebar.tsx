@@ -32,7 +32,9 @@ const links = [
 const DashboardSidebar = () => {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.auth.signOut();
     localStorage.removeItem("sos-auth");
     navigate("/");
   };

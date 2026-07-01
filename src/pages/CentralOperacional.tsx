@@ -30,7 +30,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AIAssistant } from "@/components/AIAssistant";
-import { fetchAlerts, updateAlertStatus, fetchUnits, findClosestAgent, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
+import { fetchAlerts, updateAlertStatus, fetchUnits, findClosestAgent, updateStatus, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
 
 /* ── Police Bases ── */
@@ -46,8 +46,8 @@ const POLICE_BASES = [
 
 const createAlertIcon = (status: string) => {
   const color =
-    status === "pendente" ? "#ef4444" : status === "em atendimento" ? "#f59e0b" : "#22c55e";
-  const pulse = status === "pendente" ? "animation:pulse-dot 1.5s infinite;" : "";
+    status === "Pendente" ? "#ef4444" : status === "Despachado" ? "#f59e0b" : "#22c55e";
+  const pulse = status === "Pendente" ? "animation:pulse-dot 1.5s infinite;" : "";
   return L.divIcon({
     html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 14px ${color}99;${pulse}"></div>`,
     className: "",
@@ -206,10 +206,10 @@ const CentralOperacional = () => {
       heatLayerRef.current = null;
     }
     if (!showHeatmap || alertList.length === 0) return;
-    const points: [number, number, number][] = alertList.map((a) => [
+    const     points: [number, number, number][] = alertList.map((a) => [
       a.latitude,
       a.longitude,
-      a.status === "pendente" ? 1.0 : a.status === "em atendimento" ? 0.7 : 0.3,
+      a.status === "Pendente" ? 1.0 : a.status === "Despachado" ? 0.7 : 0.3,
     ]);
     heatLayerRef.current = (L as any).heatLayer(points, {
       radius: 35,
@@ -231,7 +231,7 @@ const CentralOperacional = () => {
       marker.bindPopup(
         `<div style="font-family:Inter;font-size:12px;color:#e2e8f0;background:#0f172a;padding:12px;border-radius:8px;border:1px solid #1e3a5f;min-width:180px;">
           <strong style="font-size:13px;">${alert.name}</strong><br/>
-          <span style="color:${alert.status === "pendente" ? "#ef4444" : alert.status === "em atendimento" ? "#f59e0b" : "#22c55e"};font-size:11px;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">● ${alert.status}</span><br/>
+            <span style="color:${alert.status === "Pendente" ? "#ef4444" : alert.status === "Despachado" ? "#f59e0b" : "#22c55e"};font-size:11px;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">● ${alert.status}</span><br/>
           ${alert.phone ? `<span style="color:#94a3b8;font-size:10px;">📞 ${alert.phone}</span><br/>` : ""}
           ${alert.createdAt ? `<span style="color:#64748b;font-size:10px;">🕐 ${new Date(alert.createdAt).toLocaleTimeString("pt-AO")}</span>` : ""}
         </div>`,
@@ -242,7 +242,7 @@ const CentralOperacional = () => {
 
     updateHeatmap(alertList);
 
-    const pending = alertList.find((a) => a.status === "pendente");
+    const pending = alertList.find((a) => a.status === "Pendente");
     if (pending) {
       mapInstance.current.setView([pending.latitude, pending.longitude], 14, { animate: true });
     }
@@ -322,7 +322,7 @@ const CentralOperacional = () => {
   const confirmDispatch = useCallback(async () => {
     if (!dispatch) return;
     setDispatchConfirming(true);
-    await handleStatusUpdate(dispatch.alertId, "em atendimento");
+                    await handleStatusUpdate(dispatch.alertId, "Despachado");
     if (routeLineRef.current && mapInstance.current) {
       mapInstance.current.removeLayer(routeLineRef.current);
       routeLineRef.current = null;
@@ -373,7 +373,7 @@ const CentralOperacional = () => {
           toast("🚨 Nova ocorrência recebida!", {
             description: "Um novo alerta de emergência chegou ao sistema.",
           });
-          const firstPending = newAlerts.find((a) => a.status === "pendente");
+          const firstPending = newAlerts.find((a) => a.status === "Pendente");
           if (firstPending) {
             triggerAutoDispatch(firstPending);
           }
@@ -427,7 +427,7 @@ const CentralOperacional = () => {
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)));
       updateMarkers(alerts.map((a) => (a.id === id ? { ...a, status: newStatus } : a)));
       toast(
-        newStatus === "em atendimento" ? "Ocorrência em atendimento" : "Ocorrência concluída",
+        newStatus === "Despachado" ? "Ocorrência em atendimento" : "Ocorrência concluída",
         { description: `Alerta #${id.slice(-6)} actualizado.` }
       );
     } catch {
@@ -437,14 +437,14 @@ const CentralOperacional = () => {
   };
 
   /* ── Stats ── */
-  const pendingCount = alerts.filter((a) => a.status === "pendente").length;
-  const attendingCount = alerts.filter((a) => a.status === "em atendimento").length;
-  const concludedCount = alerts.filter((a) => a.status === "concluído" || a.status === "concluido").length;
+  const pendingCount = alerts.filter((a) => a.status === "Pendente").length;
+  const attendingCount = alerts.filter((a) => a.status === "Despachado").length;
+  const concludedCount = alerts.filter((a) => a.status === "Finalizado").length;
   const activeVehicles = agents.filter((a) => a.status !== "base").length;
 
   // Average response time (simulated based on timestamps)
   const avgResponseTime = (() => {
-    const attending = alerts.filter((a) => a.status === "em atendimento" && a.createdAt);
+    const attending = alerts.filter((a) => a.status === "Despachado" && a.createdAt);
     if (attending.length === 0) return "—";
     const totalMin = attending.reduce((sum, a) => {
       const elapsed = (Date.now() - new Date(a.createdAt!).getTime()) / 60000;
@@ -455,16 +455,16 @@ const CentralOperacional = () => {
   })();
 
   const statusBg = (s: string) =>
-    s === "pendente"
+    s === "Pendente"
       ? "bg-destructive/20 text-destructive"
-      : s === "em atendimento"
+      : s === "Despachado"
       ? "bg-warning/20 text-warning"
       : "bg-success/20 text-success";
 
   const cardBorder = (s: string) =>
-    s === "pendente"
+    s === "Pendente"
       ? "border-destructive/40 bg-destructive/5"
-      : s === "em atendimento"
+      : s === "Despachado"
       ? "border-warning/30 bg-warning/5"
       : "border-success/30 bg-success/5";
 
@@ -644,14 +644,14 @@ const CentralOperacional = () => {
                       </div>
 
                       <div className="flex gap-2">
-                        {alert.status === "pendente" && (
+                        {alert.status === "Pendente" && (
                           <>
                             <Button
                               size="sm"
                               variant="destructive"
                               className="flex-1 h-8 text-xs font-bold tracking-wide"
                               disabled={processingId === alert.id}
-                              onClick={() => handleStatusUpdate(alert.id, "em atendimento")}
+                              onClick={() => handleStatusUpdate(alert.id, "Despachado")}
                             >
                               {processingId === alert.id ? "A processar..." : (
                                 <><Phone className="w-3 h-3 mr-1" />ATENDER</>
@@ -683,19 +683,19 @@ const CentralOperacional = () => {
                             </Button>
                           </>
                         )}
-                        {alert.status === "em atendimento" && (
+                        {alert.status === "Despachado" && (
                           <Button
                             size="sm"
                             className="flex-1 h-8 text-xs font-bold tracking-wide bg-success hover:bg-success/90 text-success-foreground"
                             disabled={processingId === alert.id}
-                            onClick={() => handleStatusUpdate(alert.id, "concluído")}
+                            onClick={() => handleStatusUpdate(alert.id, "Finalizado")}
                           >
                             {processingId === alert.id ? "A processar..." : (
                               <><CheckCircle className="w-3 h-3 mr-1" />CONCLUIR</>
                             )}
                           </Button>
                         )}
-                        {alert.status === "concluído" && (
+                        {alert.status === "Finalizado" && (
                           <div className="flex items-center gap-1.5 text-[11px] text-success font-semibold">
                             <CheckCircle className="w-3.5 h-3.5" />
                             Ocorrência concluída
