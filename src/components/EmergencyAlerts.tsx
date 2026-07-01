@@ -124,7 +124,7 @@ const EmergencyAlerts = () => {
                   </span>
                 </div>
                 <p className="text-xs text-foreground/90 font-medium">{oc.type}</p>
-                <p className="text-[10px] text-muted-foreground">{oc.userName}</p>
+                <p className="text-[10px] text-muted-foreground">{oc.name}</p>
                 {nextStatus[oc.status] && (
                   <button
                     onClick={() => handleAdvance(oc.id, oc.status)}

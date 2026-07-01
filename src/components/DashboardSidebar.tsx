@@ -13,6 +13,7 @@ import {
   MessageSquare,
   BarChart3,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import sosLogo from "@/assets/sos-logo.png";
 
 const links = [
@@ -33,7 +34,6 @@ const DashboardSidebar = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    const { supabase } = await import("@/lib/supabase");
     await supabase.auth.signOut();
     localStorage.removeItem("sos-auth");
     navigate("/");

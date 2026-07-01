@@ -35,8 +35,6 @@ export default function NotificacoesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"todas" | "nao_lidas">("todas");
 
-  const userId = supabase.auth.getUser().then(r => r.data.user?.id);
-
   const carregar = async () => {
     const user = await supabase.auth.getUser();
     if (!user.data.user) return;

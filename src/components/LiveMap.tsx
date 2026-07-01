@@ -31,7 +31,7 @@ const createOccurrenceIcon = (status: string) => {
     "#22c55e";
   const size = status === "Pendente" ? 16 : 12;
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 10px ${color}99;animation:pulse 2s infinite;"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 10px ${color}99;animation:pulse-map 2s infinite;"></div>`,
     className: "",
     iconSize: [size, size],
     iconAnchor: [size/2, size/2],
