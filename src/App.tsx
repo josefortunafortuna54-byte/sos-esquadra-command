@@ -1,3 +1,4 @@
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,30 +21,32 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/mapa" element={<MapaAoVivoPage />} />
-          <Route path="/dashboard/alertas" element={<AlertasPage />} />
-          <Route path="/dashboard/crimes" element={<OcorrenciasPage />} />
-          <Route path="/dashboard/config" element={<ConfigPage />} />
-          <Route path="/dashboard/agentes" element={<AgentesPage />} />
-          <Route path="/dashboard/veiculos" element={<VeiculosPage />} />
-          <Route path="/dashboard/notificacoes" element={<NotificacoesPage />} />
-          <Route path="/dashboard/central" element={<CentralOperacional />} />
-          <Route path="/dashboard/relatorios" element={<RelatoriosPage />} />
-          <Route path="/dashboard/chat" element={<ChatPage />} />
-          <Route path="/dashboard/*" element={<Dashboard />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/mapa" element={<MapaAoVivoPage />} />
+            <Route path="/dashboard/alertas" element={<AlertasPage />} />
+            <Route path="/dashboard/crimes" element={<OcorrenciasPage />} />
+            <Route path="/dashboard/config" element={<ConfigPage />} />
+            <Route path="/dashboard/agentes" element={<AgentesPage />} />
+            <Route path="/dashboard/veiculos" element={<VeiculosPage />} />
+            <Route path="/dashboard/notificacoes" element={<NotificacoesPage />} />
+            <Route path="/dashboard/central" element={<CentralOperacional />} />
+            <Route path="/dashboard/relatorios" element={<RelatoriosPage />} />
+            <Route path="/dashboard/chat" element={<ChatPage />} />
+            <Route path="/dashboard/*" element={<Dashboard />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
