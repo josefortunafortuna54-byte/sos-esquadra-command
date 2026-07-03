@@ -19,7 +19,9 @@ export default function ChatPage() {
   const [selectedOcc, setSelectedOcc] = useState<OccurrenceChat | null>(null)
 
   useEffect(() => {
-    if (!localStorage.getItem('sos-auth')) navigate('/')
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate('/')
+    })
   }, [navigate])
 
   useEffect(() => {

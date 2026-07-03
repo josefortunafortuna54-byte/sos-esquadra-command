@@ -56,7 +56,9 @@ export default function MapaAoVivoPage() {
   const [occs, setOccs] = useState<OccMarker[]>([]);
 
   useEffect(() => {
-    if (!localStorage.getItem("sos-auth")) navigate("/");
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate("/");
+    });
   }, [navigate]);
 
   useEffect(() => {

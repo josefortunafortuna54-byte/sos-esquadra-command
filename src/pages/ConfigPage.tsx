@@ -54,7 +54,6 @@ export default function ConfigPage() {
 
   const handleLogoutAll = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem("sos-auth");
     window.location.href = "/";
   };
 

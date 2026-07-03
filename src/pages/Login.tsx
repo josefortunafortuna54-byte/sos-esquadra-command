@@ -45,7 +45,6 @@ const Login = () => {
         return;
       }
 
-      localStorage.setItem("sos-auth", "true");
       navigate("/dashboard");
     } catch {
       setError("Erro ao ligar ao servidor.");

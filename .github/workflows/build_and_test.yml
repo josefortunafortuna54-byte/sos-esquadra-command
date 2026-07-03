@@ -1,0 +1,45 @@
+name: Build e Teste — sos-esquadra-command
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sos-esquadra-command/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Testes e Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sos-esquadra-command
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: sos-esquadra-command/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: command-build
+          path: sos-esquadra-command/dist/

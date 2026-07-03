@@ -35,7 +35,6 @@ const DashboardSidebar = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem("sos-auth");
     navigate("/");
   };
 

@@ -33,7 +33,9 @@ export default function RelatoriosPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!localStorage.getItem('sos-auth')) navigate('/')
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate('/')
+    })
   }, [navigate])
 
   useEffect(() => {
