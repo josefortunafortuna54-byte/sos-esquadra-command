@@ -62,7 +62,7 @@ export default function AlertasPage() {
   useEffect(() => {
     load();
     const unsubscribe = subscribeToOccurrences(setOccurrences);
-    return unsubscribe;
+    return () => { unsubscribe() };
   }, []);
 
   const handleAdvance = async (id: string, status: Occurrence["status"]) => {
@@ -182,7 +182,7 @@ export default function AlertasPage() {
                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-1"><User className="w-3 h-3" />{oc.name}</span>
                       {oc.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{oc.phone}</span>}
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{oc.latitude.toFixed(4)}, {oc.longitude.toFixed(4)}</span>
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{oc.latitude?.toFixed(4) ?? '-'}, {oc.longitude?.toFixed(4) ?? '-'}</span>
                     </div>
                     {nextStatus[oc.status] && (
                       <div className="mt-3 flex justify-end">

@@ -57,7 +57,7 @@ const EmergencyAlerts = () => {
     load();
     // Realtime — receber actualizações instantâneas
     const unsubscribe = subscribeToOccurrences(setOccurrences);
-    return unsubscribe;
+    return () => { unsubscribe() };
   }, []);
 
   const handleAdvance = async (id: string, status: Occurrence["status"]) => {

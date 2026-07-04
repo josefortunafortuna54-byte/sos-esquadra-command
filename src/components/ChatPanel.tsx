@@ -21,7 +21,7 @@ export function ChatPanel({ occurrenceId, occurrenceTitle, onClose }: ChatPanelP
       setMessages(msgs)
     })
     markMessagesAsRead(occurrenceId)
-    return unsub
+    return () => { unsub() }
   }, [occurrenceId])
 
   useEffect(() => {

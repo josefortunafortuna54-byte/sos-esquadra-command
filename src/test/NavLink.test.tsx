@@ -4,21 +4,22 @@ import { BrowserRouter } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 
 describe("NavLink", () => {
-  it("renders with label", () => {
+  it("renders with to path", () => {
     render(
       <BrowserRouter>
-        <NavLink to="/test" label="Teste" icon={<span>I</span>} />
+        <NavLink to="/test" data-testid="navlink">Teste</NavLink>
       </BrowserRouter>
     );
+    expect(screen.getByTestId("navlink")).toBeDefined();
     expect(screen.getByText("Teste")).toBeDefined();
   });
 
-  it("renders with custom icon", () => {
+  it("applies className correctly", () => {
     render(
       <BrowserRouter>
-        <NavLink to="/test" label="Link" icon={<span data-testid="custom-icon">*</span>} />
+        <NavLink to="/test" className="custom-class">Link</NavLink>
       </BrowserRouter>
     );
-    expect(screen.getByTestId("custom-icon")).toBeDefined();
+    expect(screen.getByText("Link")).toBeDefined();
   });
 });

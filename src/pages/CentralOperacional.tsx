@@ -30,7 +30,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AIAssistant } from "@/components/AIAssistant";
-import { fetchAlerts, updateAlertStatus, fetchUnits, findClosestAgent, updateStatus, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
+import { fetchAlerts, subscribeToOccurrences, updateAlertStatus, fetchUnits, findClosestAgent, updateStatus, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/components/ui/sonner";
 
 /* ── Police Bases ── */
@@ -208,11 +209,13 @@ const CentralOperacional = () => {
       heatLayerRef.current = null;
     }
     if (!showHeatmap || alertList.length === 0) return;
-    const     points: [number, number, number][] = alertList.map((a) => [
-      a.latitude,
-      a.longitude,
-      a.status === "Pendente" ? 1.0 : a.status === "Despachado" ? 0.7 : 0.3,
-    ]);
+    const points: [number, number, number][] = alertList
+      .filter((a) => a.latitude != null && a.longitude != null)
+      .map((a) => [
+        a.latitude!,
+        a.longitude!,
+        a.status === "Pendente" ? 1.0 : a.status === "Despachado" ? 0.7 : 0.3,
+      ]);
     heatLayerRef.current = (L as any).heatLayer(points, {
       radius: 35,
       blur: 25,
@@ -358,71 +361,68 @@ const CentralOperacional = () => {
     setDispatch(null);
   }, [dispatch]);
 
-  /* ── Polling: Alerts ── */
+  /* ── Realtime: Alerts ── */
   useEffect(() => {
-    let active = true;
-    const load = async () => {
+    let initialLoaded = false;
+    const unsubscribe = subscribeToOccurrences((data) => {
+      if (!initialLoaded) {
+        initialLoaded = true;
+        setLoading(false);
+      }
+      if (prevCountRef.current > 0 && data.length > prevCountRef.current) {
+        playAlertSound();
+        const newAlerts = data.slice(0, data.length - prevCountRef.current);
+        const newIds = new Set(newAlerts.map((a) => a.id));
+        setFlashIds(newIds);
+        setTimeout(() => setFlashIds(new Set()), 3000);
+        toast("🚨 Nova ocorrência recebida!", {
+          description: "Um novo alerta de emergência chegou ao sistema.",
+        });
+        const firstPending = newAlerts.find((a) => a.status === "Pendente");
+        if (firstPending) {
+          triggerAutoDispatch(firstPending);
+        }
+      }
+      prevCountRef.current = data.length;
+      setAlerts(data);
+      setApiError(false);
+      updateMarkers(data);
+    });
+    // Fallback: re-fetch every 30s in case Realtime disconnects
+    const fallback = setInterval(async () => {
       try {
         const data = await fetchAlerts();
-        if (!active) return;
-
-        if (prevCountRef.current > 0 && data.length > prevCountRef.current) {
-          playAlertSound();
-          const newAlerts = data.slice(0, data.length - prevCountRef.current);
-          const newIds = newAlerts.map((a) => a.id);
-          setFlashIds(new Set(newIds));
-          setTimeout(() => setFlashIds(new Set()), 3000);
-          toast("🚨 Nova ocorrência recebida!", {
-            description: "Um novo alerta de emergência chegou ao sistema.",
-          });
-          const firstPending = newAlerts.find((a) => a.status === "Pendente");
-          if (firstPending) {
-            triggerAutoDispatch(firstPending);
-          }
-        }
         prevCountRef.current = data.length;
         setAlerts(data);
-        setApiError(false);
         updateMarkers(data);
-        setLoading(false);
-      } catch {
-        if (active) {
-          setLoading(false);
-          setApiError(true);
-        }
-      }
-    };
-    load();
-    const interval = setInterval(load, 5000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
+      } catch { /* silent */ }
+    }, 30000);
+    return () => { unsubscribe(); clearInterval(fallback); };
   }, [updateMarkers, triggerAutoDispatch]);
 
-  /* ── Polling: Vehicles (2s via /units) ── */
+  /* ── Realtime: Vehicles ── */
   useEffect(() => {
-    let active = true;
-    const loadUnits = async () => {
-      try {
-        const data = await fetchUnits();
-        if (!active) return;
-        setAgents(data);
-        updateVehicleMarkers(data);
-      } catch {
-        // silently fail
-      }
-    };
-    loadUnits();
-    const interval = setInterval(loadUnits, 2000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
+    const channel = supabase
+      .channel('agent-locations-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'agent_locations' },
+        async () => {
+          const data = await fetchUnits();
+          setAgents(data);
+          updateVehicleMarkers(data);
+        }
+      )
+      .subscribe();
+    fetchUnits().then((data) => {
+      setAgents(data);
+      updateVehicleMarkers(data);
+    });
+    return () => { supabase.removeChannel(channel); };
   }, [updateVehicleMarkers]);
 
   /* ── Actions ── */
-  const handleStatusUpdate = async (id: string, newStatus: string) => {
+  const handleStatusUpdate = async (id: string, newStatus: Alert['status']) => {
     setProcessingId(id);
     try {
       await updateAlertStatus(id, newStatus);
@@ -635,7 +635,7 @@ const CentralOperacional = () => {
                         )}
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                           <MapPin className="w-3 h-3" />
-                          <span>{alert.latitude.toFixed(4)}, {alert.longitude.toFixed(4)}</span>
+                          <span>{alert.latitude?.toFixed(4) ?? '-'}, {alert.longitude?.toFixed(4) ?? '-'}</span>
                         </div>
                         {alert.createdAt && (
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">

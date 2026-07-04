@@ -10,7 +10,7 @@ interface ReportRow {
   latitude: number;
   longitude: number;
   created_at: string;
-  users: { nome: string } | null;
+  users: Record<string, unknown> | Record<string, unknown>[] | null;
 }
 
 const statusStyles: Record<string, string> = {
@@ -83,7 +83,7 @@ const CrimeReports = () => {
                   className="border-b border-border/50 hover:bg-secondary/50 transition-colors"
                 >
                   <td className="py-2.5 font-medium text-foreground">{r.tipo}</td>
-                  <td className="py-2.5 text-muted-foreground">{r.users?.nome ?? "Desconhecido"}</td>
+                  <td className="py-2.5 text-muted-foreground">{Array.isArray(r.users) ? (r.users[0]?.nome as string) ?? "Desconhecido" : (r.users as Record<string, unknown>)?.nome as string ?? "Desconhecido"}</td>
                   <td className="py-2.5">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyles[r.status] ?? ""}`}>
                       {r.status}

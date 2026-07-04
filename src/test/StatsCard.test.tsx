@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { StatsCard } from "@/components/StatsCard";
+import StatsCard from "@/components/StatsCard";
 
 describe("StatsCard", () => {
   it("renders with title and value", () => {

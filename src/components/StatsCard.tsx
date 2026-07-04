@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 interface StatsCardProps {
   title: string;
   value: string | number;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   change?: string;
   variant?: "default" | "danger" | "warning" | "success";
 }
@@ -39,9 +39,11 @@ const StatsCard = ({ title, value, icon: Icon, change, variant = "default" }: St
           <p className="text-xs text-muted-foreground mt-1">{change}</p>
         )}
       </div>
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconVariants[variant]}`}>
-        <Icon className="w-5 h-5" />
-      </div>
+      {Icon && (
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconVariants[variant]}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+      )}
     </div>
   </motion.div>
 );

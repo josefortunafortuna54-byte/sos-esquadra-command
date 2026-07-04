@@ -122,7 +122,7 @@ export { fetchOccurrences as fetchAlerts }
 export type Alert = Occurrence
 export type DispatchResult = { agent: Agent; distance: number }
 
-export async function updateAlertStatus(id: string, status: string): Promise<void> {
+export async function updateAlertStatus(id: string, status: Occurrence['status']): Promise<void> {
   const { error } = await supabase
     .from('occurrences')
     .update({ status })
