@@ -135,6 +135,24 @@ export async function fetchUnits(): Promise<Agent[]> {
   return fetchAgents()
 }
 
+export function subscribeToUnits(
+  callback: (agents: Agent[]) => void
+) {
+  const channel = supabase
+    .channel('agent-locations-changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'agent_locations' },
+      async () => {
+        const data = await fetchAgents()
+        callback(data)
+      }
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}
+
 export async function findClosestAgent(lat: number, lng: number): Promise<DispatchResult | null> {
   const agents = await fetchAgents()
   if (agents.length === 0) return null

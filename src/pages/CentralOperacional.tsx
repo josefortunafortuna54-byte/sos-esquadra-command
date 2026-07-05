@@ -30,8 +30,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AIAssistant } from "@/components/AIAssistant";
-import { fetchAlerts, subscribeToOccurrences, updateAlertStatus, fetchUnits, findClosestAgent, updateStatus, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
-import { supabase } from "@/lib/supabase";
+import { fetchAlerts, subscribeToOccurrences, subscribeToUnits, updateAlertStatus, fetchUnits, findClosestAgent, updateStatus, type Alert, type Agent, type DispatchResult } from "@/lib/alertsApi";
 import { toast } from "@/components/ui/sonner";
 
 /* ── Police Bases ── */
@@ -388,37 +387,20 @@ const CentralOperacional = () => {
       setApiError(false);
       updateMarkers(data);
     });
-    // Fallback: re-fetch every 30s in case Realtime disconnects
-    const fallback = setInterval(async () => {
-      try {
-        const data = await fetchAlerts();
-        prevCountRef.current = data.length;
-        setAlerts(data);
-        updateMarkers(data);
-      } catch { /* silent */ }
-    }, 30000);
-    return () => { unsubscribe(); clearInterval(fallback); };
+    return () => { unsubscribe(); };
   }, [updateMarkers, triggerAutoDispatch]);
 
   /* ── Realtime: Vehicles ── */
   useEffect(() => {
-    const channel = supabase
-      .channel('agent-locations-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'agent_locations' },
-        async () => {
-          const data = await fetchUnits();
-          setAgents(data);
-          updateVehicleMarkers(data);
-        }
-      )
-      .subscribe();
+    const unsubscribe = subscribeToUnits((data) => {
+      setAgents(data);
+      updateVehicleMarkers(data);
+    });
     fetchUnits().then((data) => {
       setAgents(data);
       updateVehicleMarkers(data);
     });
-    return () => { supabase.removeChannel(channel); };
+    return () => { unsubscribe(); };
   }, [updateVehicleMarkers]);
 
   /* ── Actions ── */
